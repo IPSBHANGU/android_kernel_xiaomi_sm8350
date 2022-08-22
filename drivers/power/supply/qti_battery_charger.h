@@ -456,7 +456,6 @@ struct battery_chg_dev {
 	bool				support_wireless_charge;
 	bool				support_2s_charging;
 	struct delayed_work		xm_prop_change_work;
-	struct delayed_work		charger_debug_info_print_work;
 	/* To track the driver initialization status */
 	bool				initialized;
 };

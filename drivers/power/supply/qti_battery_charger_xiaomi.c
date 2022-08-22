@@ -1597,41 +1597,6 @@ static ssize_t bt_state_show(struct class *c, struct class_attribute *attr,
 static CLASS_ATTR_RW(bt_state);
 #endif
 
-static ssize_t voter_debug_store(struct class *c, struct class_attribute *attr,
-				 const char *buf, size_t count)
-{
-	struct battery_chg_dev *bcdev =
-		container_of(c, struct battery_chg_dev, battery_class);
-	int rc;
-	int val;
-
-	if (kstrtoint(buf, 10, &val))
-		return -EINVAL;
-
-	rc = write_property_id(bcdev, &bcdev->psy_list[PSY_TYPE_XM],
-			       XM_PROP_VOTER_DEBUG, val);
-	if (rc < 0)
-		return rc;
-
-	return count;
-}
-
-static ssize_t voter_debug_show(struct class *c, struct class_attribute *attr,
-				char *buf)
-{
-	struct battery_chg_dev *bcdev =
-		container_of(c, struct battery_chg_dev, battery_class);
-	struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_XM];
-	int rc;
-
-	rc = read_property_id(bcdev, pst, XM_PROP_VOTER_DEBUG);
-	if (rc < 0)
-		return rc;
-
-	return scnprintf(buf, PAGE_SIZE, "%u", pst->prop[XM_PROP_VOTER_DEBUG]);
-}
-static CLASS_ATTR_RW(voter_debug);
-
 static ssize_t wlscharge_control_limit_store(struct class *c,
 					     struct class_attribute *attr,
 					     const char *buf, size_t count)
@@ -2928,7 +2893,6 @@ static struct attribute *xiaomi_battery_class_attrs[] = {
 	&class_attr_fastchg_mode.attr,
 	&class_attr_apdo_max.attr,
 	&class_attr_thermal_remove.attr,
-	&class_attr_voter_debug.attr,
 	&class_attr_fg_rm.attr,
 	&class_attr_wlscharge_control_limit.attr,
 	&class_attr_mtbf_current.attr,
@@ -3062,56 +3026,4 @@ void generate_xm_charge_uvent(struct work_struct *work)
 
 	free_page((unsigned long)prop_buf);
 	return;
-}
-
-#define CHARGING_PERIOD_S 60
-#define DISCHARGE_PERIOD_S 300
-void xm_charger_debug_info_print_work(struct work_struct *work)
-{
-	struct battery_chg_dev *bcdev =
-		container_of(work, struct battery_chg_dev,
-			     charger_debug_info_print_work.work);
-	struct power_supply *usb_psy = NULL;
-	int rc, usb_present = 0;
-	int vbus_vol_uv, ibus_ua;
-	int interval = DISCHARGE_PERIOD_S;
-	union power_supply_propval val = {
-		0,
-	};
-
-	usb_psy = bcdev->psy_list[PSY_TYPE_USB].psy;
-	if (usb_psy != NULL) {
-		rc = usb_psy_get_prop(usb_psy, POWER_SUPPLY_PROP_ONLINE, &val);
-		if (!rc)
-			usb_present = val.intval;
-		else
-			usb_present = 0;
-		pr_err("usb_present: %d\n", usb_present);
-	} else {
-		return;
-	}
-
-	if (usb_present == 1) {
-		rc = usb_psy_get_prop(usb_psy, POWER_SUPPLY_PROP_VOLTAGE_NOW,
-				      &val);
-		if (!rc)
-			vbus_vol_uv = val.intval;
-		else
-			vbus_vol_uv = 0;
-
-		rc = usb_psy_get_prop(usb_psy, POWER_SUPPLY_PROP_CURRENT_NOW,
-				      &val);
-		if (!rc)
-			ibus_ua = val.intval;
-		else
-			ibus_ua = 0;
-
-		pr_err("vbus_vol_uv: %d, ibus_ua: %d\n", vbus_vol_uv, ibus_ua);
-		interval = CHARGING_PERIOD_S;
-	} else {
-		interval = DISCHARGE_PERIOD_S;
-	}
-
-	schedule_delayed_work(&bcdev->charger_debug_info_print_work,
-			      interval * HZ);
 }
